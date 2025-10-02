@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cybersecurity Lab Resource Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is designed as an interactive dashboard with three main components: 1) Control Filters, 2) Visual Summary Charts, and 3) a detailed Lab Card Grid. This structure was chosen to provide a top-down data exploration experience. Users can get a high-level overview from the charts, then use the filters to dynamically drill down into specific labs that match their criteria (e.g., available RAM, preferred deployment platform). This card-based, filterable layout is more intuitive and user-friendly for comparing technical specs than a static table, directly supporting the goal of easy information synthesis and planning. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Lab requirements (RAM, CPU, OS, etc.). Goal: Inform & Organize. Viz/Presentation: HTML/Tailwind cards in a responsive grid. Interaction: Cards are dynamically shown/hidden based on global filters. Justification: Cards present detailed information for each lab in a structured, digestible format. Method: Vanilla JS DOM manipulation.
+        - Report Info: Recommended vCPUs & RAM. Goal: Compare. Viz/Presentation: Two horizontal bar charts. Interaction: Charts dynamically update based on filtered data. Justification: Bar charts are excellent for comparing quantitative values across different categories (labs). Library: Chart.js (Canvas).
+        - Report Info: Deployment Suitability. Goal: Inform (Proportions). Viz/Presentation: A donut chart. Interaction: Updates with filters, shows count on hover. Justification: A donut chart effectively displays the distribution/proportion of labs suitable for each platform (AWS, Docker, etc.). Library: Chart.js (Canvas).
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Cybersecurity Lab Resource Planner</h1>
+            <p class="mt-2 text-lg text-gray-600">An interactive guide to the technical requirements for each lab.</p>
+        </header>
+
+        <main>
+            <section id="filters" class="mb-8 p-6 bg-white rounded-xl shadow-sm">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Filter Labs</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="ramFilter" class="block text-sm font-medium text-gray-700">Recommended RAM</label>
+                        <select id="ramFilter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All</option>
+                            <option value="2">2 GB</option>
+                            <option value="4">4 GB</option>
+                            <option value="8">8 GB</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="deploymentFilter" class="block text-sm font-medium text-gray-700">Deployment Suitability</label>
+                        <select id="deploymentFilter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All Platforms</option>
+                            <option value="AWS EC2">AWS EC2</option>
+                            <option value="Docker">Docker</option>
+                            <option value="VirtualBox">VirtualBox</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="osFilter" class="block text-sm font-medium text-gray-700">Suitable OS</label>
+                        <select id="osFilter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All Operating Systems</option>
+                            <option value="Ubuntu">Ubuntu</option>
+                             <option value="CentOS">CentOS</option>
+                            <option value="Kali Linux">Kali Linux</option>
+                            <option value="pfSense">pfSense</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="visualizations" class="mb-8 p-6 bg-white rounded-xl shadow-sm">
+                 <div class="text-center mb-8">
+                     <h2 class="text-2xl font-semibold text-gray-800">Resource Overview</h2>
+                     <p class="mt-1 text-gray-600">This section provides a high-level comparison of resource requirements and platform suitability across the selected labs. Use the charts to quickly identify the most demanding labs or common deployment environments.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                    <div class="chart-container mx-auto">
+                        <canvas id="ramChart"></canvas>
+                    </div>
+                    <div class="chart-container mx-auto">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                    <div class="chart-container mx-auto lg:col-span-2" style="max-width: 400px; height: 300px;">
+                        <canvas id="deploymentChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section id="lab-cards">
+                 <div class="text-center mb-8">
+                     <h2 class="text-2xl font-semibold text-gray-800">Lab Details</h2>
+                     <p class="mt-1 text-gray-600">Here you can find detailed information for each lab. Use the filters above to narrow down the list to find labs that match your available resources and preferred setup.</p>
+                </div>
+                <div id="lab-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const labData = [
+            { id: 1, resources: "GLPI, FreeIPA", deployment: "VirtualBox / AWS EC2", vcpus: 2, ram: 4, os: "Ubuntu Server / CentOS", aws: "t3.medium" },
+            { id: 2, resources: "OSSEC, Maltego", deployment: "VirtualBox (OSSEC Server), Local Machine (Maltego Client)", vcpus: 2, ram: 2, os: "Ubuntu Server (for OSSEC)", aws: "N/A" },
+            { id: 3, resources: "SpiderFoot, Recon-ng", deployment: "Docker / VirtualBox", vcpus: 1, ram: 2, os: "Kali Linux / Ubuntu", aws: "t3.small" },
+            { id: 4, resources: "OpenVAS, Threat Dragon", deployment: "VirtualBox / AWS EC2", vcpus: 4, ram: 8, os: "Kali Linux / Ubuntu Server", aws: "t3.xlarge" },
+            { id: 5, resources: "OpenSCAP, Ansible", deployment: "Docker / VirtualBox", vcpus: 1, ram: 2, os: "Ubuntu Server / CentOS", aws: "t3.small" },
+            { id: 6, resources: "pfSense, Nessus", deployment: "VirtualBox", vcpus: 4, ram: 8, os: "pfSense (OS), Ubuntu (for Nessus)", aws: "t3.large (for Nessus)" },
+            { id: 7, resources: "Snort, ELK Stack", deployment: "Docker / VirtualBox", vcpus: 4, ram: 8, os: "Ubuntu Server", aws: "t3.xlarge" },
+            { id: 8, resources: "Suricata, Zabbix", deployment: "VirtualBox / Docker", vcpus: 2, ram: 4, os: "Ubuntu Server", aws: "t3.medium" },
+            { id: 9, resources: "Keepalived, HAProxy", deployment: "VirtualBox", vcpus: 2, ram: 2, os: "Ubuntu Server", aws: "N/A" },
+            { id: 10, resources: "MediaWiki, ELK Stack", deployment: "Docker / VirtualBox", vcpus: 4, ram: 8, os: "Ubuntu Server", aws: "t3.xlarge" }
+        ];
+
+        let ramChart, cpuChart, deploymentChart;
+
+        const iconMap = {
+            vcpus: '⚙️',
+            ram: '💾',
+            os: '🖥️',
+            deployment: '☁️',
+            aws: '💡'
+        };
+
+        const chartColors = {
+            backgroundColor: [
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 206, 86, 0.6)',
+                'rgba(153, 102, 255, 0.6)',
+                'rgba(255, 159, 64, 0.6)',
+                'rgba(199, 199, 199, 0.6)',
+                'rgba(83, 102, 255, 0.6)',
+                'rgba(100, 255, 64, 0.6)',
+                 'rgba(255, 99, 255, 0.6)'
+            ],
+            borderColor: [
+                'rgba(54, 162, 235, 1)',
+                'rgba(255, 99, 132, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 206, 86, 1)',
+                'rgba(153, 102, 255, 1)',
+                'rgba(255, 159, 64, 1)',
+                 'rgba(199, 199, 199, 1)',
+                'rgba(83, 102, 255, 1)',
+                'rgba(100, 255, 64, 1)',
+                'rgba(255, 99, 255, 1)'
+            ],
+        };
+
+        function renderCards(data) {
+            const grid = document.getElementById('lab-grid');
+            grid.innerHTML = '';
+            if (data.length === 0) {
+                grid.innerHTML = `<p class="md:col-span-2 xl:col-span-3 text-center text-gray-500">No labs match the current filters.</p>`;
+                return;
+            }
+            data.forEach(lab => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-sm p-6 flex flex-col transition-all duration-300 hover:shadow-lg hover:scale-105';
+                card.innerHTML = `
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">Lab #${String(lab.id).padStart(2, '0')}</h3>
+                    <p class="text-blue-600 font-semibold mb-4 flex-grow">${lab.resources}</p>
+                    <div class="space-y-3 text-sm">
+                        <p class="flex items-center"><span class="mr-2">${iconMap.ram}</span><strong>RAM:</strong><span class="ml-1">${lab.ram} GB</span></p>
+                        <p class="flex items-center"><span class="mr-2">${iconMap.vcpus}</span><strong>vCPUs:</strong><span class="ml-1">${lab.vcpus}</span></p>
+                        <p class="flex items-center"><span class="mr-2">${iconMap.os}</span><strong>OS:</strong><span class="ml-1">${lab.os}</span></p>
+                        <p class="flex items-center"><span class="mr-2">${iconMap.deployment}</span><strong>Deployment:</strong><span class="ml-1">${lab.deployment}</span></p>
+                        <p class="flex items-center"><span class="mr-2">${iconMap.aws}</span><strong>AWS Instance:</strong><span class="ml-1">${lab.aws}</span></p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function createCharts(data) {
+            const ramCtx = document.getElementById('ramChart').getContext('2d');
+            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+            const deploymentCtx = document.getElementById('deploymentChart').getContext('2d');
+
+            const labels = data.map(lab => `Lab #${lab.id}`);
+
+            if (ramChart) ramChart.destroy();
+            ramChart = new Chart(ramCtx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Recommended RAM (GB)',
+                        data: data.map(lab => lab.ram),
+                        backgroundColor: chartColors.backgroundColor,
+                        borderColor: chartColors.borderColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'RAM Requirements per Lab' } }
+                }
+            });
+
+            if (cpuChart) cpuChart.destroy();
+            cpuChart = new Chart(cpuCtx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Recommended vCPUs',
+                        data: data.map(lab => lab.vcpus),
+                        backgroundColor: chartColors.backgroundColor,
+                        borderColor: chartColors.borderColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                     indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'vCPU Requirements per Lab' } }
+                }
+            });
+
+            const deploymentCounts = data.reduce((acc, lab) => {
+                const platforms = lab.deployment.split(' / ').map(p => p.includes('VirtualBox') ? 'VirtualBox' : (p.includes('AWS') ? 'AWS EC2' : (p.includes('Docker') ? 'Docker' : 'Other')));
+                platforms.forEach(p => {
+                    acc[p] = (acc[p] || 0) + 1;
+                });
+                return acc;
+            }, {});
+
+            if (deploymentChart) deploymentChart.destroy();
+            deploymentChart = new Chart(deploymentCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(deploymentCounts),
+                    datasets: [{
+                        label: 'Deployment Suitability',
+                        data: Object.values(deploymentCounts),
+                        backgroundColor: chartColors.backgroundColor,
+                        borderColor: chartColors.borderColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Deployment Platform Distribution' }
+                    }
+                }
+            });
+        }
+
+        function applyFilters() {
+            const ramFilter = document.getElementById('ramFilter').value;
+            const deploymentFilter = document.getElementById('deploymentFilter').value;
+            const osFilter = document.getElementById('osFilter').value;
+
+            let filteredData = labData.filter(lab => {
+                const ramMatch = ramFilter === 'all' || lab.ram == ramFilter;
+                const deploymentMatch = deploymentFilter === 'all' || lab.deployment.includes(deploymentFilter);
+                const osMatch = osFilter === 'all' || lab.os.includes(osFilter);
+                return ramMatch && deploymentMatch && osMatch;
+            });
+            
+            renderCards(filteredData);
+            createCharts(filteredData);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('ramFilter').addEventListener('change', applyFilters);
+            document.getElementById('deploymentFilter').addEventListener('change', applyFilters);
+            document.getElementById('osFilter').addEventListener('change', applyFilters);
+            
+            applyFilters();
+        });
+
+    </script>
+</body>
+</html>
+
+
+
+
+
